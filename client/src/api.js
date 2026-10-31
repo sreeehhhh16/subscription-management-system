@@ -7,7 +7,7 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
 export async function api(path, { method = 'GET', body } = {}) {
   const token = getToken()
-  const res = await fetch('/api' + path, {
+  const res = await fetch((import.meta.env.VITE_API_URL || '') + '/api' + path, {
     method,
     headers: {
       'Content-Type': 'application/json',

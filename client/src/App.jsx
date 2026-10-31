@@ -9,6 +9,8 @@ import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Staff from './pages/Staff'
 import ComingSoon from './pages/ComingSoon'
+import Subscriptions from './pages/Subscriptions'
+import SubscriptionDetail from './pages/SubscriptionDetail'
 
 // Login and signup are only for people who are not logged in yet
 function PublicOnly({ children }) {

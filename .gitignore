@@ -3,3 +3,4 @@ server/prisma/dev.db*
 node_modules
 .env
 server/prisma/dev.db*
+.vite

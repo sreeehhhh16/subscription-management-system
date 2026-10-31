@@ -110,3 +110,31 @@ a { color: var(--blue); }
   .sidebar-logo { display: none; }
   .rules { grid-template-columns: 1fr; }
 }
+
+/* Lists and tables */
+.toolbar { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 1rem 0; }
+.toolbar input, .toolbar select { padding: 0.55rem 0.75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font: inherit; }
+.toolbar input { flex: 1 1 14rem; max-width: 24rem; }
+.table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+.table { width: 100%; border-collapse: collapse; font-size: 0.93rem; }
+.table th, .table td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.table th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); background: var(--paper); }
+.table tr:last-child td { border-bottom: none; }
+.table .num { text-align: right; white-space: nowrap; }
+.small { font-size: 0.82rem; }
+.badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: #eceff4; color: var(--muted); }
+.badge.active, .badge.paid { background: var(--green-bg); color: var(--green); }
+.badge.quotation, .badge.confirmed { background: #e8edff; color: var(--blue-dark); }
+.badge.closed, .badge.cancelled, .badge.overdue { background: var(--red-bg); color: var(--red); }
+.pager { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; }
+.pager > div { display: flex; align-items: center; gap: 0.75rem; }
+.pager .btn { background: var(--card); border: 1px solid var(--line); color: var(--text); }
+.pager .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.back { display: inline-block; margin-bottom: 0.75rem; color: var(--blue); text-decoration: none; font-size: 0.92rem; }
+.head-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.details { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; margin: 1rem 0 1.5rem; }
+.details dt { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.details dd { margin: 0.15rem 0 0; font-weight: 600; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1rem 0; }
+.btn.danger { background: var(--red); color: #fff; }
+h2.section { font-size: 1.1rem; margin: 1.5rem 0 0.6rem; }

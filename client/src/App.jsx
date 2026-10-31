@@ -32,6 +32,7 @@ export default function App() {
 
         {/* Everyone logged in. Customers only get their own data from the API */}
         <Route path="subscriptions" element={<ComingSoon title="Subscriptions" note="Uses GET /api/subscriptions" />} />
+        <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
         <Route path="invoices" element={<ComingSoon title="Invoices" note="Uses GET /api/invoices" />} />
         <Route path="payments" element={<ComingSoon title="Payments" note="Uses GET /api/payments" />} />
 

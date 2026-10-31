@@ -1,0 +1,53 @@
+[33mcommit dd812d21bf2fc57ce5ceb78b8c953ffd99ec86e4[m
+Author: Sreenandh S <sreenandhsunil4@gmail.com>
+Date:   Sat Oct 31 13:53:26 2026 +0530
+
+    Add files via upload
+
+ client/index.html                       |   5 [32m+[m[31m-[m
+ client/package.json                     |   5 [32m+[m[31m-[m
+ client/src/App.jsx                      | 156 [32m++++++++++[m[31m---------------------------[m
+ client/src/api.js                       |  28 [32m+++++++[m
+ client/src/auth/AuthContext.jsx         |  51 [32m++++++++++++[m
+ client/src/auth/ProtectedRoute.jsx      |  13 [32m++++[m
+ client/src/components/AuthLayout.jsx    |  25 [32m++++++[m
+ client/src/components/Layout.jsx        |  80 [32m+++++++++++++++++++[m
+ client/src/components/Logo.jsx          |  11 [32m+++[m
+ client/src/components/PasswordRules.jsx |  21 [32m+++++[m
+ client/src/index.css                    | 195 [32m+++++++++++++++++++++++[m[31m-----------------------[m
+ client/src/main.jsx                     |   8 [32m+[m[31m-[m
+ client/src/pages/ComingSoon.jsx         |  12 [32m+++[m
+ client/src/pages/Dashboard.jsx          |  45 [32m+++++++++++[m
+ client/src/pages/ForgotPassword.jsx     |  43 [32m++++++++++[m
+ client/src/pages/Login.jsx              |  49 [32m++++++++++++[m
+ client/src/pages/ResetPassword.jsx      |  62 [32m+++++++++++++++[m
+ client/src/pages/Signup.jsx             |  58 [32m++++++++++++++[m
+ client/src/pages/Staff.jsx              |  47 [32m+++++++++++[m
+ client/vite.config.js                   |   7 [32m+[m[31m-[m
+ 20 files changed, 705 insertions(+), 216 deletions(-)
+
+[33mcommit 97f26242cb911801fef4c46a7502074121d6cb39[m
+Author: Sreenandh S <sreenandhsunil4@gmail.com>
+Date:   Sat Oct 31 14:10:54 2026 +0530
+
+    Add files via upload
+
+ server/API.md                  |  42 [32m+++++++++++++++++[m
+ server/index.js                |  23 [32m+++++++++[m
+ server/prisma/schema.prisma    |  19 [32m++++++++[m
+ server/routes/auth.js          |  14 [32m+++++[m[31m-[m
+ server/routes/discounts.js     | 100 [32m+++++++++++++++++++++++++++++++++++++++[m
+ server/routes/invoices.js      | 123 [32m+++++++++++++++++++++++++++++++++++++[m[31m-----------[m
+ server/routes/payments.js      |  77 [32m++++++++++++++++++++[m[31m----------[m
+ server/routes/reports.js       |  96 [32m++++++++++++++++++++++++++++++++++++++[m
+ server/routes/subscriptions.js | 140 [32m++++++++++++++++++++++++[m[31m-------------------------------[m
+ server/routes/taxes.js         |  49 [32m+++++++++++++++++[m[31m--[m
+ server/routes/templates.js     | 111 [32m+++++++++++++++++++++++++++++++++++++++++++[m
+ server/routes/users.js         |  51 [32m+++++++++++++++[m[31m-----[m
+ server/seed-demo.js            |  83 [32m+++++++++++++++++++++++++++++++++[m
+ server/utils/billing.js        |  85 [32m++++++++++++++++++++++++++[m[31m-------[m
+ server/utils/discounts.js      |  63 [32m+++++++++++++++++++++++++[m
+ server/utils/mailer.js         |  36 [32m++++++++++++++[m
+ server/utils/paginate.js       |  29 [32m++++++++++++[m
+ server/utils/subscriptions.js  |  99 [32m+++++++++++++++++++++++++++++++++++++++[m
+ 18 files changed, 1074 insertions(+), 166 deletions(-)

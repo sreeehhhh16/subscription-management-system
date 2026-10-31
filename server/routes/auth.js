@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const prisma = require("../db");
 const { validPassword, PASSWORD_MESSAGE } = require("../utils/password");
+const { sendMail } = require("../utils/mailer");
 
 const router = express.Router();
 
@@ -57,8 +58,17 @@ router.post("/forgot-password", async (req, res) => {
       where: { id: user.id },
       data: { resetToken: hash, resetExpires: new Date(Date.now() + 60 * 60 * 1000) },
     });
-    // No email service yet, so the link is printed in the server terminal
-    console.log(`RESET LINK for ${user.email}: http://localhost:5173/reset-password?token=${token}`);
+    // Sent by email when SMTP is set up (see utils/mailer.js); otherwise printed in the server terminal
+    const base = process.env.CLIENT_URL || "http://localhost:5173";
+    try {
+      await sendMail({
+        to: user.email,
+        subject: "Reset your Brightloop password",
+        text: `Use this link to choose a new password. It works for one hour.\n\n${base}/reset-password?token=${token}\n`,
+      });
+    } catch (e) {
+      console.error("Could not send reset email:", e.message);
+    }
   }
   res.json({ message: "If that email is registered, a reset link has been sent." });
 });

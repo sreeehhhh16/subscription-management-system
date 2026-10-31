@@ -1,4 +1,5 @@
 const prisma = require("../db");
+const { applyDiscounts, round } = require("./discounts");
 
 function addPeriod(date, period) {
   const d = new Date(date);
@@ -15,32 +16,51 @@ function dueDays(terms) {
   return m ? Number(m[1]) : 15;
 }
 
-const round = (n) => Math.round(n * 100) / 100;
+const describe = (l) =>
+  l.variant ? `${l.product.name} (${l.variant.attribute}: ${l.variant.value})` : l.product.name;
 
-async function billOnePeriod(sub) {
+// Invoice maths:
+//   subtotal      = sum of the product lines, before discounts and tax
+//   discountTotal = everything taken off (also shown as negative "Discount: ..." lines)
+//   taxTotal      = tax worked out on what is left after discounts
+//   total         = subtotal - discountTotal + taxTotal
+async function billOnePeriod(sub, discounts) {
   const periodStart = sub.nextBillingDate;
+  const base = sub.lines.map((l) => ({
+    productId: l.productId,
+    quantity: l.quantity,
+    amount: round(l.quantity * l.unitPrice),
+  }));
+  const { net, applied, total: discountTotal } = applyDiscounts(base, discounts, sub.id, periodStart);
+
   let subtotal = 0;
   let taxTotal = 0;
-  const lines = sub.lines.map((l) => {
-    const amount = round(l.quantity * l.unitPrice);
-    const tax = l.tax ? round((amount * l.tax.ratePct) / 100) : 0;
-    subtotal += amount;
-    taxTotal += tax;
+  const lines = sub.lines.map((l, i) => {
+    subtotal += base[i].amount;
+    if (l.tax) taxTotal += round((net[i] * l.tax.ratePct) / 100);
     return {
-      description: l.product.name,
+      description: describe(l),
       quantity: l.quantity,
       unitPrice: l.unitPrice,
       taxId: l.taxId,
-      amount,
+      amount: base[i].amount,
     };
   });
+  const discountLines = applied.map((a) => ({
+    description: `Discount: ${a.discount.name}`,
+    quantity: 1,
+    unitPrice: -a.amount,
+    taxId: null,
+    discountId: a.discount.id,
+    amount: -a.amount,
+  }));
   subtotal = round(subtotal);
   taxTotal = round(taxTotal);
-  const total = round(subtotal + taxTotal);
+  const total = round(subtotal - discountTotal + taxTotal);
   const dueDate = new Date(periodStart);
   dueDate.setUTCDate(dueDate.getUTCDate() + dueDays(sub.paymentTerms));
 
-  return prisma.$transaction(async (tx) => {
+  const invoice = await prisma.$transaction(async (tx) => {
     const inv = await tx.invoice.create({
       data: {
         number: `TMP-${sub.id}-${periodStart.getTime()}`,
@@ -50,11 +70,22 @@ async function billOnePeriod(sub) {
         billingPeriodStart: periodStart,
         subtotal,
         taxTotal,
-        discountTotal: 0,
+        discountTotal,
         total,
-        lines: { create: lines },
+        lines: { create: [...lines, ...discountLines] },
       },
     });
+    // Count the use. The check stops two runs at once from going past the limit.
+    for (const a of applied) {
+      const r = await tx.discount.updateMany({
+        where: {
+          id: a.discount.id,
+          ...(a.discount.usageLimit != null ? { timesUsed: { lt: a.discount.usageLimit } } : {}),
+        },
+        data: { timesUsed: { increment: 1 } },
+      });
+      if (r.count === 0) throw new Error(`Discount "${a.discount.name}" has reached its usage limit`);
+    }
     await tx.subscription.update({
       where: { id: sub.id },
       data: { nextBillingDate: addPeriod(periodStart, sub.plan.billingPeriod) },
@@ -64,13 +95,32 @@ async function billOnePeriod(sub) {
       data: { number: `INV-${String(inv.id).padStart(5, "0")}` },
     });
   });
+  for (const a of applied) a.discount.timesUsed += 1; // keep the in-memory copy in step
+  return invoice;
+}
+
+// Active subscriptions past their expiry date, with every period already billed, are closed
+async function closeFinishedSubscriptions(asOf) {
+  const candidates = await prisma.subscription.findMany({
+    where: { status: "ACTIVE", expiryDate: { lt: asOf } },
+    select: { id: true, nextBillingDate: true, expiryDate: true },
+  });
+  const ids = candidates
+    .filter((s) => !s.nextBillingDate || s.nextBillingDate > s.expiryDate)
+    .map((s) => s.id);
+  if (ids.length) {
+    await prisma.subscription.updateMany({ where: { id: { in: ids } }, data: { status: "CLOSED" } });
+  }
+  return ids.length;
 }
 
 async function generateDueInvoices(asOf) {
   const subs = await prisma.subscription.findMany({
     where: { status: "ACTIVE", nextBillingDate: { lte: asOf } },
-    include: { plan: true, lines: { include: { product: true, tax: true } } },
+    include: { plan: true, lines: { include: { product: true, tax: true, variant: true } } },
   });
+  // Discount rules are few, so load them once for the whole run (oldest first, so they stack in a fixed order)
+  const discounts = await prisma.discount.findMany({ orderBy: { id: "asc" } });
   const created = [];
   const skipped = [];
   for (const first of subs) {
@@ -84,7 +134,7 @@ async function generateDueInvoices(asOf) {
     ) {
       const next = addPeriod(sub.nextBillingDate, sub.plan.billingPeriod);
       try {
-        const inv = await billOnePeriod(sub);
+        const inv = await billOnePeriod(sub, discounts);
         created.push(inv.number);
       } catch (e) {
         if (e.code !== "P2002") {
@@ -101,7 +151,8 @@ async function generateDueInvoices(asOf) {
       sub = { ...sub, nextBillingDate: next };
     }
   }
-  return { created, skipped };
+  const closed = await closeFinishedSubscriptions(asOf);
+  return { created, skipped, closedSubscriptions: closed };
 }
 
-module.exports = { generateDueInvoices };
+module.exports = { generateDueInvoices, closeFinishedSubscriptions };

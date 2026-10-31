@@ -17,6 +17,8 @@ model User {
   resetExpires  DateTime?
   createdAt     DateTime       @default(now())
   subscriptions Subscription[]
+
+  @@index([role])
 }
 
 model Product {
@@ -38,6 +40,7 @@ model ProductVariant {
   value      String
   extraPrice Float   @default(0)
   product    Product @relation(fields: [productId], references: [id])
+  lines      SubscriptionLine[]
 }
 
 model Plan {
@@ -76,24 +79,32 @@ model Subscription {
   expiryDate      DateTime
   paymentTerms    String?
   nextBillingDate DateTime?
+  quotationExpiresAt DateTime?
   createdAt       DateTime           @default(now())
   customer        User               @relation(fields: [customerId], references: [id])
   plan            Plan               @relation(fields: [planId], references: [id])
   lines           SubscriptionLine[]
   invoices        Invoice[]
   discounts       Discount[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([planId])
+  @@index([status, nextBillingDate])
 }
 
 model SubscriptionLine {
   id             Int          @id @default(autoincrement())
   subscriptionId Int
   productId      Int
+  variantId      Int?
   quantity       Int
   unitPrice      Float
   taxId          Int?
   amount         Float
   subscription   Subscription @relation(fields: [subscriptionId], references: [id])
   product        Product      @relation(fields: [productId], references: [id])
+  variant        ProductVariant? @relation(fields: [variantId], references: [id])
   tax            Tax?         @relation(fields: [taxId], references: [id])
 }
 
@@ -101,6 +112,7 @@ model Tax {
   id       Int                @id @default(autoincrement())
   name     String
   ratePct  Float
+  isDefault Boolean           @default(false)
   subLines SubscriptionLine[]
   invLines InvoiceLine[]
 }
@@ -134,11 +146,14 @@ model Invoice {
   taxTotal           Float
   discountTotal      Float         @default(0)
   total              Float
+  sentAt             DateTime?
   subscription       Subscription  @relation(fields: [subscriptionId], references: [id])
   lines              InvoiceLine[]
   payments           Payment[]
 
   @@unique([subscriptionId, billingPeriodStart])
+  @@index([status, dueDate])
+  @@index([issueDate])
 }
 
 model InvoiceLine {
@@ -148,6 +163,7 @@ model InvoiceLine {
   quantity    Int
   unitPrice   Float
   taxId       Int?
+  discountId  Int?
   amount      Float
   invoice     Invoice @relation(fields: [invoiceId], references: [id])
   tax         Tax?    @relation(fields: [taxId], references: [id])
@@ -161,4 +177,7 @@ model Payment {
   paidAt    DateTime
   note      String?
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId])
+  @@index([paidAt])
 }

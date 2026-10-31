@@ -1,6 +1,9 @@
 const express = require("express");
 const prisma = require("../db");
 const { authenticate, requireRole } = require("../middleware/auth");
+const { parsePage, pageResult } = require("../utils/paginate");
+const { createSubscription, fullInclude } = require("../utils/subscriptions");
+const { round } = require("../utils/discounts");
 
 const router = express.Router();
 const team = [authenticate, requireRole("ADMIN", "STAFF")];
@@ -14,22 +17,41 @@ const NEXT = {
   CLOSED: [],
 };
 
-const fullInclude = {
+// Lighter than fullInclude, for list pages
+const listInclude = {
   customer: { select: { id: true, email: true, name: true } },
-  plan: true,
-  lines: { include: { product: true, tax: true } },
+  plan: { select: { id: true, name: true, billingPeriod: true } },
+  lines: { select: { amount: true } },
 };
 
+// GET /api/subscriptions?status=ACTIVE&search=acme&planId=1&customerId=5&page=1&limit=20
+// Customers always get only their own.
 router.get("/", authenticate, async (req, res) => {
+  const isCustomer = req.user.role === "CUSTOMER";
+  const q = req.query;
   const where = {};
-  if (req.user.role === "CUSTOMER") where.customerId = req.user.id;
-  if (req.query.status) where.status = req.query.status;
-  const subs = await prisma.subscription.findMany({
-    where,
-    include: fullInclude,
-    orderBy: { id: "desc" },
-  });
-  res.json(subs);
+  if (isCustomer) where.customerId = req.user.id;
+  else if (q.customerId) where.customerId = Number(q.customerId);
+  if (q.status) where.status = String(q.status).toUpperCase();
+  if (q.planId) where.planId = Number(q.planId);
+  const search = String(q.search || "").trim();
+  if (search) {
+    where.OR = [{ number: { contains: search } }];
+    if (!isCustomer) {
+      where.OR.push({ customer: { email: { contains: search } } }, { customer: { name: { contains: search } } });
+    }
+  }
+  const p = parsePage(q);
+  const [rows, total] = await Promise.all([
+    prisma.subscription.findMany({ where, include: listInclude, orderBy: { id: "desc" }, skip: p.skip, take: p.take }),
+    prisma.subscription.count({ where }),
+  ]);
+  const items = rows.map(({ lines, ...s }) => ({
+    ...s,
+    lineCount: lines.length,
+    amount: round(lines.reduce((sum, l) => sum + l.amount, 0)),
+  }));
+  res.json(pageResult(items, total, p));
 });
 
 router.get("/:id", authenticate, async (req, res) => {
@@ -44,80 +66,22 @@ router.get("/:id", authenticate, async (req, res) => {
 });
 
 router.post("/", team, async (req, res) => {
-  const b = req.body;
-  if (!b.customerId || !b.planId || !b.startDate || !b.expiryDate ||
-      !Array.isArray(b.lines) || b.lines.length === 0) {
-    return res.status(400).json({
-      error: "customerId, planId, startDate, expiryDate and at least one line are required",
-    });
-  }
-  const customer = await prisma.user.findUnique({ where: { id: Number(b.customerId) } });
-  if (!customer || customer.role !== "CUSTOMER") {
-    return res.status(400).json({ error: "Customer not found" });
-  }
-  const plan = await prisma.plan.findUnique({ where: { id: Number(b.planId) } });
-  if (!plan || plan.status !== "ACTIVE") {
-    return res.status(400).json({ error: "Plan not found or not active" });
-  }
-  const start = new Date(b.startDate);
-  const expiry = new Date(b.expiryDate);
-  if (expiry <= start) {
-    return res.status(400).json({ error: "expiryDate must be after startDate" });
-  }
-  const lines = [];
-  for (const l of b.lines) {
-    const product = await prisma.product.findUnique({
-      where: { id: Number(l.productId) },
-      include: { variants: true },
-    });
-    if (!product) return res.status(400).json({ error: `Product ${l.productId} not found` });
-    const qty = Number(l.quantity);
-    if (!qty || qty < plan.minQuantity) {
-      return res.status(400).json({ error: `Quantity must be at least ${plan.minQuantity}` });
-    }
-    let unitPrice = product.salesPrice;
-    if (l.variantId) {
-      const variant = product.variants.find((v) => v.id === Number(l.variantId));
-      if (!variant) return res.status(400).json({ error: "Variant does not belong to this product" });
-      unitPrice += variant.extraPrice;
-    }
-    if (l.taxId) {
-      const tax = await prisma.tax.findUnique({ where: { id: Number(l.taxId) } });
-      if (!tax) return res.status(400).json({ error: `Tax ${l.taxId} not found` });
-    }
-    lines.push({
-      productId: product.id,
-      quantity: qty,
-      unitPrice,
-      taxId: l.taxId ? Number(l.taxId) : null,
-      amount: qty * unitPrice,
-    });
-  }
-  const sub = await prisma.subscription.create({
-    data: {
-      number: "TMP-" + Date.now(),
-      customerId: customer.id,
-      planId: plan.id,
-      startDate: start,
-      expiryDate: expiry,
-      paymentTerms: b.paymentTerms,
-      lines: { create: lines },
-    },
-  });
-  const saved = await prisma.subscription.update({
-    where: { id: sub.id },
-    data: { number: `SUB-${String(sub.id).padStart(5, "0")}` },
-    include: fullInclude,
-  });
-  res.status(201).json(saved);
+  const result = await createSubscription(req.body);
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.status(201).json(result.subscription);
 });
 
 router.post("/:id/status", team, async (req, res) => {
   const sub = await prisma.subscription.findUnique({ where: { id: Number(req.params.id) } });
   if (!sub) return res.status(404).json({ error: "Subscription not found" });
   const next = req.body.status;
-  if (!NEXT[sub.status].includes(next)) {
+  if (!(NEXT[sub.status] || []).includes(next)) {
     return res.status(400).json({ error: `Cannot move from ${sub.status} to ${next}` });
+  }
+  if (next === "CONFIRMED" && sub.quotationExpiresAt && sub.quotationExpiresAt < new Date()) {
+    return res.status(400).json({
+      error: `This quotation expired on ${sub.quotationExpiresAt.toISOString().slice(0, 10)}`,
+    });
   }
   const data = { status: next };
   if (next === "ACTIVE") data.nextBillingDate = sub.startDate;
@@ -127,6 +91,26 @@ router.post("/:id/status", team, async (req, res) => {
     include: fullInclude,
   });
   res.json(updated);
+});
+
+// A customer can close their own active subscription, if its plan allows early closing
+router.post("/:id/cancel", authenticate, requireRole("CUSTOMER"), async (req, res) => {
+  const sub = await prisma.subscription.findUnique({
+    where: { id: Number(req.params.id) },
+    include: { plan: true },
+  });
+  if (!sub || sub.customerId !== req.user.id) {
+    return res.status(404).json({ error: "Subscription not found" });
+  }
+  if (sub.status !== "ACTIVE") {
+    return res.status(400).json({ error: "Only an active subscription can be closed" });
+  }
+  if (!sub.plan.allowEarlyClose) {
+    return res.status(400).json({ error: "This plan cannot be closed early. Please contact us." });
+  }
+  res.json(
+    await prisma.subscription.update({ where: { id: sub.id }, data: { status: "CLOSED" }, include: fullInclude })
+  );
 });
 
 module.exports = router;

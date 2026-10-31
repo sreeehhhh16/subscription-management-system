@@ -52,6 +52,7 @@ model Plan {
   allowPause      Boolean             @default(false)
   allowRenew      Boolean             @default(false)
   allowEarlyClose Boolean             @default(false)
+  status          String              @default("ACTIVE")
   subscriptions   Subscription[]
   templates       QuotationTemplate[]
 }

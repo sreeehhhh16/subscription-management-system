@@ -9,8 +9,9 @@ import ResetPassword from './pages/ResetPassword'
 import Dashboard from './pages/Dashboard'
 import Staff from './pages/Staff'
 import ComingSoon from './pages/ComingSoon'
-import Subscriptions from './pages/Subscriptions'
+import Invoices from './pages/Invoices'
 import SubscriptionDetail from './pages/SubscriptionDetail'
+import Subscriptions from './pages/Subscriptions'
 
 // Login and signup are only for people who are not logged in yet
 function PublicOnly({ children }) {
@@ -33,9 +34,9 @@ export default function App() {
         <Route index element={<Dashboard />} />
 
         {/* Everyone logged in. Customers only get their own data from the API */}
-        <Route path="subscriptions" element={<ComingSoon title="Subscriptions" note="Uses GET /api/subscriptions" />} />
+        <Route path="subscriptions" element={<Subscriptions />} />
         <Route path="subscriptions/:id" element={<SubscriptionDetail />} />
-        <Route path="invoices" element={<ComingSoon title="Invoices" note="Uses GET /api/invoices" />} />
+        <Route path="invoices" element={<Invoices />} />
         <Route path="payments" element={<ComingSoon title="Payments" note="Uses GET /api/payments" />} />
 
         {/* Admin only */}
